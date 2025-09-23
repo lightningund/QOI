@@ -1,0 +1,33 @@
+{
+	"version": 8,
+	"configurePresets": [
+		{
+			"name": "MSVC_17_2022_x64",
+			"displayName": "VS 2022 x64",
+			"description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+			"generator": "Visual Studio 17 2022",
+			"toolset": "host=x64",
+			"architecture": "x64",
+			"binaryDir": "${sourceDir}/out/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+				"CMAKE_C_COMPILER": "cl.exe",
+				"CMAKE_CXX_COMPILER": "cl.exe"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "MSVC_17_2022_x64-debug",
+			"displayName": "VS 2022 x64 - Debug",
+			"configurePreset": "MSVC_17_2022_x64",
+			"configuration": "Debug"
+		},
+		{
+			"name": "MSVC_17_2022_x64-release",
+			"displayName": "VS 2022 x64 - Release",
+			"configurePreset": "MSVC_17_2022_x64",
+			"configuration": "Release"
+		}
+	]
+}

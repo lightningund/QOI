@@ -12,10 +12,12 @@ using System;
 using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Text;
 
 // Currently going to implement a way simpler file type that's not real
 // First two bytes are the width and height
 // After that it's literally just the image data in 8bit RGB
+
 
 namespace QOIFileType {
 	public sealed class QOIFileTypeFactory : IFileTypeFactory {
@@ -51,15 +53,23 @@ namespace QOIFileType {
 			Surface scratchSurface,
 			ProgressEventHandler progressCallback
 		) {
-			using var writer = new BinaryWriter(output);
+			using BinaryWriter writer = new(output, Encoding.UTF8, true);
 			byte width = (byte)input.Width;
 			byte height = (byte)input.Height;
 			writer.Write(width);
 			writer.Write(height);
-			Document boring = input.Flatten();
-			BitmapLayer bmpLayer = boring.Layers[0] as BitmapLayer;
-			using Bitmap bmp = bmpLayer.Surface.CreateAliasedBitmap();
-			bmp.Save(output, ImageFormat.Bmp);
+			Surface boring = new(width, height);
+			input.Flatten(boring);
+			for (int j = 0; j < height; ++j) {
+				for (int i = 0; i < width; ++i) {
+					var col = boring[i, j];
+					writer.Write(col.B);
+					writer.Write(col.G);
+					writer.Write(col.R);
+				}
+			}
+			// using Bitmap bmp = boring.CreateAliasedBitmap();
+			// bmp.Save(output, ImageFormat.Bmp);
 		}
 
 		/// <summary>

@@ -12,6 +12,7 @@
 		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Base.dll" Private="false" />
 		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Core.dll" Private="false" />
 		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Data.dll" Private="false" />
+		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Primitives.dll" Private="false" />
 		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.ComponentModel.dll" Private="false" />
 	</ItemGroup>
 	<ItemGroup>

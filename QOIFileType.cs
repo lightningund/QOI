@@ -13,10 +13,7 @@ using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Text;
-
-// Currently going to implement a way simpler file type that's not real
-// First two bytes are the width and height
-// After that it's literally just the image data in 8bit RGB
+using System.Runtime.InteropServices;
 
 namespace QOIFileType {
 	public sealed class QOIFileTypeFactory : IFileTypeFactory {
@@ -27,6 +24,17 @@ namespace QOIFileType {
 
 	[PluginSupportInfo(typeof(PluginSupportInfo))]
 	internal class QOIFileTypePlugin : FileType {
+		// From https://stackoverflow.com/a/4074557
+		internal static T ReadType<T>(BinaryReader reader) {
+			byte[] bytes = reader.ReadBytes(Marshal.SizeOf<T>());
+
+			GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+			T theStructure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());
+			handle.Free();
+
+			return theStructure;
+		}
+
 		/// <summary>
 		/// Constructs a QOIFileTypePlugin instance
 		/// </summary>
@@ -74,23 +82,35 @@ namespace QOIFileType {
 
 			try {
 				using var reader = new BinaryReader(input);
-				byte width = reader.ReadByte();
-				byte height = reader.ReadByte();
-				byte[] imageData = new byte[width * height * 3];
-				reader.Read(imageData);
-				using Bitmap bmp = new(width, height, PixelFormat.Format24bppRgb);
-				// Lock the bitmap's bits.
-				BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+				// byte width = reader.ReadByte();
+				// byte height = reader.ReadByte();
 
-				// Copy the pixel data to the bitmap
-				IntPtr ptr = bmpData.Scan0;
-				System.Runtime.InteropServices.Marshal.Copy(imageData, 0, ptr, imageData.Length);
+				var magic = reader.ReadChars(4);
 
-				// Unlock the bits.
-				bmp.UnlockBits(bmpData);
+				// Read bytes into the header struct
+				var header = ReadType<Header>(reader);
 
-				// Create a document from it
-				doc = Document.FromImage(bmp);
+				if (BitConverter.IsLittleEndian) {
+					header.width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.width);
+					header.height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.height);
+				}
+
+				throw new Exception(new string(magic) + ", " + header.width + ", " + header.height);
+
+				// byte[] imageData = new byte[width * height * 3];
+				// reader.Read(imageData);
+				// using Bitmap bmp = new(width, height, PixelFormat.Format24bppRgb);
+
+				// BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+				// // Copy the pixel data to the bitmap
+				// IntPtr ptr = bmpData.Scan0;
+				// Marshal.Copy(imageData, 0, ptr, imageData.Length);
+
+				// bmp.UnlockBits(bmpData);
+
+				// // Create a document from the image
+				// doc = Document.FromImage(bmp);
 			} catch (Exception e) {
 				doc?.Dispose();
 				throw new FormatException("Error loading file - " + e.Message, e);
@@ -98,5 +118,12 @@ namespace QOIFileType {
 
 			return doc;
 		}
+	}
+
+	internal struct Header {
+		public uint width;
+		public uint height;
+		public byte channels;
+		public byte colorspace;
 	}
 }

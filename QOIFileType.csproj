@@ -3,7 +3,7 @@
 		<TargetFramework>net9.0-windows</TargetFramework>
 		<LangVersion>latest</LangVersion>
 		<OutputType>Library</OutputType>
-		<OutputPath>result</OutputPath>
+		<OutputPath>C:\Program Files\Paint.NET\FileTypes</OutputPath>
 		<UseWPF>true</UseWPF>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<DebugType>None</DebugType>

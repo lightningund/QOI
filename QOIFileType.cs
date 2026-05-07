@@ -4,6 +4,9 @@
 
 // Paint dot net plugin to save and load QOI images
 
+// Run with `dotnet build`. It places the dll directly into the FileTypes folder so the terminal needs to be admin and Paint.NET needs to be closed
+// To place it locally just change `<OutputPath>` to be a local folder, say `result`
+
 using PaintDotNet;
 using System;
 using System.Collections.Generic;

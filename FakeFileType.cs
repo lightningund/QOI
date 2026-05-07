@@ -2,7 +2,9 @@
 // https://github.com/sbtrn-devil/pdn-json/blob/main/PdnJsonFileType.cs
 // Acquired on 06/05/25
 
-// Paint dot net plugin to save and load QOI images
+// Paint dot net plugin to save and load a custom fake format of images:
+// First two bytes are the width and height
+// After that it's literally just the image data in 8bit RGB
 
 // Run with `dotnet build`. It places the dll directly into the FileTypes folder so the terminal needs to be admin and Paint.NET needs to be closed
 // To place it locally just change `<OutputPath>` to be a local folder, say `result`
@@ -14,28 +16,24 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Text;
 
-// Currently going to implement a way simpler file type that's not real
-// First two bytes are the width and height
-// After that it's literally just the image data in 8bit RGB
-
-namespace QOIFileType {
-	public sealed class QOIFileTypeFactory : IFileTypeFactory {
+namespace FakeFileType {
+	public sealed class FakeFileTypeFactory : IFileTypeFactory {
 		public FileType[] GetFileTypeInstances() {
-			return [new QOIFileTypePlugin()];
+			return [new FakeFileTypePlugin()];
 		}
 	}
 
 	[PluginSupportInfo(typeof(PluginSupportInfo))]
-	internal class QOIFileTypePlugin : FileType {
+	internal class FakeFileTypePlugin : FileType {
 		/// <summary>
-		/// Constructs a QOIFileTypePlugin instance
+		/// Constructs a FakeFileTypePlugin instance
 		/// </summary>
-		internal QOIFileTypePlugin()
+		internal FakeFileTypePlugin()
 			: base(
-				"QOI",
+				"Fake",
 				new FileTypeOptions{
-					LoadExtensions = [".qoi", ".qoif"],
-					SaveExtensions = [".qoi", ".qoif"]
+					LoadExtensions = [".fake"],
+					SaveExtensions = [".fake"]
 				}
 			) {}
 

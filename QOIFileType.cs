@@ -129,41 +129,4 @@ namespace QOIFileType {
 			return doc;
 		}
 	}
-
-	[DataContract]
-	internal class PJSLayer {
-		[DataMember] internal int width;
-		[DataMember] internal int height;
-		[DataMember] internal bool visible;
-		[DataMember] internal byte opacity;
-		[DataMember] internal String name;
-		[DataMember] internal String blendMode;
-		[DataMember] internal String mimeType;
-		[DataMember] internal String base64;
-	}
-
-	[DataContract]
-	internal class PJSFile {
-		[DataMember] internal HashSet<String> features = new HashSet<String>();
-		[DataMember] internal int width;
-		[DataMember] internal int height;
-		[DataMember(IsRequired=false)] internal String dpuUnit { get; set; }
-		[DataMember(IsRequired=false)] internal double? dpuX { get; set; }
-		[DataMember(IsRequired=false)] internal double? dpuY { get; set; }
-
-		[DataMember]
-		internal List<PJSLayer> layers = new List<PJSLayer>();
-
-		[System.Runtime.Serialization.OnDeserialized]
-		void OnDeserialized(System.Runtime.Serialization.StreamingContext c) {
-			dpuUnit = (dpuUnit == null ? "Inch" : dpuUnit);
-			dpuX = (dpuX == null ? 96.0 : dpuX);
-			dpuY = (dpuY == null ? 96.0 : dpuY);
-		}
-	}
-
-	internal static class Features {
-		// any strings that can go to "features" array are to be defined and referenced via this class
-		internal const String RESERVED = "RESERVED";
-	}
 }

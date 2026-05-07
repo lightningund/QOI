@@ -3,7 +3,7 @@ rem Don't put the value into quotes if uncommenting the following line
 rem set PDN_HOME=C:\Program Files\Paint.NET
 
 if "%PDN_HOME%a"=="a" goto NO_PDN_HOME
-csc /target:library /r:"%PDN_HOME%\PaintDotNet.Base.dll","%PDN_HOME%\PaintDotNet.Core.dll","%PDN_HOME%\PaintDotNet.Data.dll","System.Runtime.dll" QOIFileType.cs
+csc -t:library -r:"%PDN_HOME%\PaintDotNet.Base.dll","%PDN_HOME%\PaintDotNet.Core.dll","%PDN_HOME%\PaintDotNet.Data.dll","System.Runtime.dll" QOIFileType.cs
 exit 0
 
 :NO_PDN_HOME

@@ -101,25 +101,16 @@ namespace QOIFileType {
 				using (var reader = new BinaryReader(stream)) {
 					byte width = reader.ReadByte();
 					byte height = reader.ReadByte();
-					// doc = new Document(width, height);
 					byte[] imageData = new byte[width * height * 3];
 					reader.Read(imageData);
 					using (Stream imageDataStream = new MemoryStream(imageData)) {
 						using (Image image = Image.FromStream(imageDataStream)) {
 							doc = Document.FromGdipImage(image);
-							// Surface surface = Surface.CopyFromGdipImage(image);
-							// // construct BitmapLayer from Surface that will also take its ownership
-							// BitmapLayer pdnLayer = new BitmapLayer(surface, true);
-
-							// // the layer is ready
-							// doc.Layers.Add(pdnLayer);
 						}
 					}
 				}
 			} catch (Exception e) {
-				if (doc != null) {
-					doc.Dispose();
-				}
+				if (doc != null) doc.Dispose();
 				throw new FormatException("Error loading file - " + e.Message, e);
 			}
 

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net9.0-windows</TargetFramework>
+		<OutputType>Library</OutputType>
+	</PropertyGroup>
+	<ItemGroup>
+		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Base.dll" />
+		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Core.dll" />
+		<Reference Include="C:\Program Files\Paint.NET\PaintDotNet.Data.dll" />
+	</ItemGroup>
+</Project>
+<!-- <Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net9.0-windows</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<OutputType>Library</OutputType>
+	</PropertyGroup>
+	<ItemGroup>
+		<Reference Include="PaintDotNet.Base">
+			<HintPath>C:\Program Files\Paint.NET\PaintDotNet.Base.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="PaintDotNet.Core">
+			<HintPath>C:\Program Files\Paint.NET\PaintDotNet.Core.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+		<Reference Include="PaintDotNet.Data">
+			<HintPath>C:\Program Files\Paint.NET\PaintDotNet.Data.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+	</ItemGroup>
+</Project> -->

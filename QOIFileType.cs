@@ -51,17 +51,15 @@ namespace QOIFileType {
 			Surface scratchSurface,
 			ProgressEventHandler progressCallback
 		) {
-			using (var writer = new BinaryWriter(output)) {
-				byte width = (byte)input.Width;
-				byte height = (byte)input.Height;
-				writer.Write(width);
-				writer.Write(height);
-				Document boring = input.Flatten();
-				BitmapLayer bmpLayer = boring.Layers[0] as BitmapLayer;
-				using (Bitmap bmp = bmpLayer.Surface.CreateAliasedBitmap()) {
-					bmp.Save(output, ImageFormat.Bmp);
-				}
-			}
+			using var writer = new BinaryWriter(output);
+			byte width = (byte)input.Width;
+			byte height = (byte)input.Height;
+			writer.Write(width);
+			writer.Write(height);
+			Document boring = input.Flatten();
+			BitmapLayer bmpLayer = boring.Layers[0] as BitmapLayer;
+			using Bitmap bmp = bmpLayer.Surface.CreateAliasedBitmap();
+			bmp.Save(output, ImageFormat.Bmp);
 		}
 
 		/// <summary>
@@ -71,28 +69,26 @@ namespace QOIFileType {
 			Document doc = null;
 
 			try {
-				using (var reader = new BinaryReader(input)) {
-					byte width = reader.ReadByte();
-					byte height = reader.ReadByte();
-					byte[] imageData = new byte[width * height * 3];
-					reader.Read(imageData);
-					using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format24bppRgb)) {
-						// Lock the bitmap's bits.
-						BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+				using var reader = new BinaryReader(input);
+				byte width = reader.ReadByte();
+				byte height = reader.ReadByte();
+				byte[] imageData = new byte[width * height * 3];
+				reader.Read(imageData);
+				using Bitmap bmp = new(width, height, PixelFormat.Format24bppRgb);
+				// Lock the bitmap's bits.
+				BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
 
-						// Copy the pixel data to the bitmap
-						IntPtr ptr = bmpData.Scan0;
-						System.Runtime.InteropServices.Marshal.Copy(imageData, 0, ptr, imageData.Length);
+				// Copy the pixel data to the bitmap
+				IntPtr ptr = bmpData.Scan0;
+				System.Runtime.InteropServices.Marshal.Copy(imageData, 0, ptr, imageData.Length);
 
-						// Unlock the bits.
-						bmp.UnlockBits(bmpData);
+				// Unlock the bits.
+				bmp.UnlockBits(bmpData);
 
-						// Create a document from it
-						doc = Document.FromImage(bmp);
-					}
-				}
+				// Create a document from it
+				doc = Document.FromImage(bmp);
 			} catch (Exception e) {
-				if (doc != null) doc.Dispose();
+				doc?.Dispose();
 				throw new FormatException("Error loading file - " + e.Message, e);
 			}
 

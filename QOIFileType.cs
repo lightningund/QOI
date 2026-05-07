@@ -98,7 +98,7 @@ namespace QOIFileType {
 			Document doc = null;
 
 			try {
-				using (var reader = new BinaryReader(stream)) {
+				using (var reader = new BinaryReader(input)) {
 					byte width = reader.ReadByte();
 					byte height = reader.ReadByte();
 					byte[] imageData = new byte[width * height * 3];

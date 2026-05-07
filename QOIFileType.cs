@@ -9,11 +9,7 @@
 
 using PaintDotNet;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -24,7 +20,7 @@ using System.Drawing.Imaging;
 namespace QOIFileType {
 	public sealed class QOIFileTypeFactory : IFileTypeFactory {
 		public FileType[] GetFileTypeInstances() {
-			return new[] { new QOIFileTypePlugin() };
+			return [new QOIFileTypePlugin()];
 		}
 	}
 
@@ -40,8 +36,8 @@ namespace QOIFileType {
 			: base(
 				"QOI",
 				new FileTypeOptions{
-					LoadExtensions = new string[] { ".qoi" },
-					SaveExtensions = new string[] { ".qoi" }
+					LoadExtensions = [".qoi", ".qoif"],
+					SaveExtensions = [".qoi", ".qoif"]
 				}
 			) {}
 
@@ -55,43 +51,17 @@ namespace QOIFileType {
 			Surface scratchSurface,
 			ProgressEventHandler progressCallback
 		) {
-			PJSFile pjsFile = new PJSFile();
-			pjsFile.width = input.Width;
-			pjsFile.height = input.Height;
-			pjsFile.dpuUnit = input.DpuUnit.ToString();
-			pjsFile.dpuX = input.DpuX;
-			pjsFile.dpuY = input.DpuY;
-
-			foreach (Layer layer in input.Layers) {
-				BitmapLayer pdnLayer = layer as BitmapLayer;
-				PJSLayer pjsLayer = new PJSLayer();
-
-				// transfer layer properties to its PJS representation
-				pjsLayer.name = pdnLayer.Name;
-				pjsLayer.width = pdnLayer.Width;
-				pjsLayer.height = pdnLayer.Height;
-				pjsLayer.blendMode = pdnLayer.BlendMode.ToString();
-				pjsLayer.visible = pdnLayer.Visible;
-				pjsLayer.opacity = pdnLayer.Opacity;
-
-				// transfer the data (as mimeType + base64 encoded image file - we'll use PNG)
-				pjsLayer.mimeType = "image/png";
-				pjsLayer.base64 = "";
-
-				using (MemoryStream bmpStream = new MemoryStream()) {
-					using (Bitmap bmp = pdnLayer.Surface.CreateAliasedBitmap()) {
-						bmp.Save(bmpStream, ImageFormat.Png);
-					}
-
-					pjsLayer.base64 = Convert.ToBase64String(bmpStream.ToArray());
+			using (var writer = new BinaryWriter(output)) {
+				byte width = (byte)input.Width;
+				byte height = (byte)input.Height;
+				writer.Write(width);
+				writer.Write(height);
+				Document boring = input.Flatten();
+				BitmapLayer bmpLayer = boring.Layers[0] as BitmapLayer;
+				using (Bitmap bmp = bmpLayer.Surface.CreateAliasedBitmap()) {
+					bmp.Save(output, ImageFormat.Bmp);
 				}
-
-				pjsFile.layers.Add(pjsLayer);
 			}
-
-			// write the PJS representation
-			DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(PJSFile));
-			ser.WriteObject(output, pjsFile);
 		}
 
 		/// <summary>

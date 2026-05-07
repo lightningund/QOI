@@ -14,6 +14,10 @@ using System.Runtime.Serialization.Json;
 using System.Drawing;
 using System.Drawing.Imaging;
 
+// Currently going to implement a way simpler file type that's not real
+// First two bytes are the width and height
+// After that it's literally just the image data in 8bit RGB
+
 namespace QOIFileType {
 	public sealed class QOIFileTypeFactory : IFileTypeFactory {
 		public FileType[] GetFileTypeInstances() {
@@ -106,60 +110,24 @@ namespace QOIFileType {
 		/// </summary>
 		protected override Document OnLoad(Stream input) {
 			Document doc = null;
-			PJSFile pjsFile = null;
 
 			try {
-				DataContractJsonSerializer ser = new DataContractJsonSerializer(typeof(PJSFile));
-				pjsFile = ser.ReadObject(input) as PJSFile;
-
-				if (pjsFile.width <= 0 || pjsFile.height <= 0) {
-					throw new ArgumentOutOfRangeException("Invalid document dimensions");
-				}
-
-				doc = new Document(pjsFile.width, pjsFile.height);
-
-				MeasurementUnit dpuUnit;
-				if (!Enum.TryParse<MeasurementUnit>(pjsFile.dpuUnit, out dpuUnit)) {
-					dpuUnit = MeasurementUnit.Inch;
-				}
-
-				doc.DpuUnit = dpuUnit;
-				doc.DpuX = (double)pjsFile.dpuX;
-				doc.DpuY = (double)pjsFile.dpuY;
-
-				foreach (PJSLayer pjsLayer in pjsFile.layers) {
-					// the layer width/height are apparently not used by the PDN per se, but we'll store
-					// and check them for sanity anyway
-					if (pjsLayer.width <= 0 || pjsLayer.height <= 0) {
-						throw new ArgumentOutOfRangeException("Invalid layer dimensions");
-					}
-
-					// note: pjsLayer.mimeType can hint on the image type, but is actually redundant in .net -
-					// the loader auto-detects the content by the actual data bytes
-
-					byte[] imageData = Convert.FromBase64String(pjsLayer.base64);
+				using (var reader = new BinaryReader(stream)) {
+					byte width = reader.ReadByte();
+					byte height = reader.ReadByte();
+					doc = new Document(width, height);
+					byte[] imageData = new byte[width * height * 3];
+					reader.Read(imageData);
 					using (Stream imageDataStream = new MemoryStream(imageData)) {
 						using (Image image = Image.FromStream(imageDataStream)) {
 							Surface surface = Surface.CopyFromGdipImage(image);
 							// construct BitmapLayer from Surface that will also take its ownership
 							BitmapLayer pdnLayer = new BitmapLayer(surface, true);
 
-							// copy the properties
-							pdnLayer.Visible = pjsLayer.visible;
-							pdnLayer.Opacity = pjsLayer.opacity;
-							pdnLayer.Name = pjsLayer.name;
-
-							LayerBlendMode blendMode;
-							if (!Enum.TryParse<LayerBlendMode>(pjsLayer.blendMode, out blendMode)){
-								blendMode = LayerBlendMode.Normal;
-							}
-							pdnLayer.BlendMode = blendMode;
-
 							// the layer is ready
 							doc.Layers.Add(pdnLayer);
 						}
 					}
-
 				}
 			} catch (Exception e) {
 				if (doc != null) {

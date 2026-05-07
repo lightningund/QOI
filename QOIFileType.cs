@@ -31,7 +31,7 @@ namespace QOIFileType {
 	[PluginSupportInfo(typeof(PluginSupportInfo))]
 	internal class QOIFileTypePlugin : FileType {
 		// TODO:
-		private const string HeaderSignature = ".PDN";
+		private const string HeaderSignature = ".QOI";
 
 		/// <summary>
 		/// Constructs a ExamplePropertyBasedFileType instance
@@ -106,10 +106,19 @@ namespace QOIFileType {
 					byte height = reader.ReadByte();
 					byte[] imageData = new byte[width * height * 3];
 					reader.Read(imageData);
-					using (Stream imageDataStream = new MemoryStream(imageData)) {
-						using (Image image = Image.FromStream(imageDataStream)) {
-							doc = Document.FromGdipImage(image);
-						}
+					using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format24bppRgb)) {
+						// Lock the bitmap's bits.
+						BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+						// Copy the pixel data to the bitmap
+						IntPtr ptr = bmpData.Scan0;
+						System.Runtime.InteropServices.Marshal.Copy(imageData, 0, ptr, imageData.Length);
+
+						// Unlock the bits.
+						bmp.UnlockBits(bmpData);
+
+						// Create a document from it
+						doc = Document.FromImage(bmp);
 					}
 				}
 			} catch (Exception e) {

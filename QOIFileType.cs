@@ -38,23 +38,9 @@ namespace QOIFileType {
 				"QOI",
 				new FileTypeOptions{
 					LoadExtensions = new string[] { ".qoi" },
-					SaveExtensions = new string[] { ".qoi" },
-					SupportsLayers = true
+					SaveExtensions = new string[] { ".qoi" }
 				}
 			) {}
-
-		/// <summary>
-		/// Determines if the document was saved without altering the pixel values.
-		///
-		/// Any settings that change the pixel values should return 'false'.
-		///
-		/// Because Paint.NET prompts the user to flatten the image, flattening should not be
-		/// considered.
-		/// For example, a 32-bit PNG will return 'true' even if the document has multiple layers.
-		/// </summary>
-		public override bool IsReflexive(SaveConfigToken token) {
-			return true;
-		}
 
 		/// <summary>
 		/// Saves a document to a stream respecting the properties
@@ -115,17 +101,18 @@ namespace QOIFileType {
 				using (var reader = new BinaryReader(stream)) {
 					byte width = reader.ReadByte();
 					byte height = reader.ReadByte();
-					doc = new Document(width, height);
+					// doc = new Document(width, height);
 					byte[] imageData = new byte[width * height * 3];
 					reader.Read(imageData);
 					using (Stream imageDataStream = new MemoryStream(imageData)) {
 						using (Image image = Image.FromStream(imageDataStream)) {
-							Surface surface = Surface.CopyFromGdipImage(image);
-							// construct BitmapLayer from Surface that will also take its ownership
-							BitmapLayer pdnLayer = new BitmapLayer(surface, true);
+							doc = Document.FromGdipImage(image);
+							// Surface surface = Surface.CopyFromGdipImage(image);
+							// // construct BitmapLayer from Surface that will also take its ownership
+							// BitmapLayer pdnLayer = new BitmapLayer(surface, true);
 
-							// the layer is ready
-							doc.Layers.Add(pdnLayer);
+							// // the layer is ready
+							// doc.Layers.Add(pdnLayer);
 						}
 					}
 				}

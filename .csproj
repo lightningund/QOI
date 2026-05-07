@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<OutputType>Library</OutputType>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="C:\Program Files\Paint.NET\PaintDotNet.Base.dll" />
+		<PackageReference Include="C:\Program Files\Paint.NET\PaintDotNet.Core.dll" />
+		<PackageReference Include="C:\Program Files\Paint.NET\PaintDotNet.Data.dll" />
+	</ItemGroup>
+	<ItemGroup>
+		<Compile Include="QOIFileType.cs" />
+	</ItemGroup>
+</Project>

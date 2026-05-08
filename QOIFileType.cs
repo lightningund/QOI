@@ -42,7 +42,7 @@ namespace QOIFileType {
 			public readonly byte A = a;
 
 			public Color ToColor() {
-				return Color.FromArgb(R, G, B, A);
+				return Color.FromArgb(A, R, G, B);
 			}
 
 			public static SmallColor operator +(SmallColor left, SmallColor right) {
@@ -112,29 +112,28 @@ namespace QOIFileType {
 				using var reader = new BinaryReader(input);
 				var magic = reader.ReadChars(4);
 
-				// Read bytes into the header struct
+				// Read the header
 				uint width = reader.ReadUInt32();
 				uint height = reader.ReadUInt32();
 				// Read past the channels and colorspace which are unused
 				// TODO: Deal with these maybe?
 				reader.ReadBytes(2);
-				// var header = ReadType<Header>(reader);
 
 				if (BitConverter.IsLittleEndian) {
-					header.width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.width);
-					header.height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.height);
+					width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(width);
+					height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(height);
 				}
 
 				SmallColor prev = new(0, 0, 0, 255);
 				SmallColor[] seen = new SmallColor[64];
 				int idx = 0;
-				int lastIdx = (int)(header.width * header.height);
+				int lastIdx = (int)(width * height);
 
-				using Bitmap bmp = new((int)header.width, (int)header.height, PixelFormat.Format32bppArgb);
+				using Bitmap bmp = new((int)width, (int)height, PixelFormat.Format32bppArgb);
 
 				void SetPixel(SmallColor col) {
-					int x = idx % (int)header.width;
-					int y = idx / (int)header.width;
+					int x = idx % (int)width;
+					int y = idx / (int)width;
 					bmp.SetPixel(x, y, col.ToColor());
 					prev = col;
 					seen[PixelHash(col)] = col;
@@ -150,43 +149,43 @@ namespace QOIFileType {
 						byte[] colors = reader.ReadBytes(3);
 						SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
 						SetPixel(alphed);
-					} else if (read == 0b11111111) { // QOI_OP_RGBA
+						continue;
+					}
+
+					if (read == 0b11111111) { // QOI_OP_RGBA
 						byte[] colors = reader.ReadBytes(4);
 						SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
-					} else {
-						byte opcode = (byte)((read >>> 6) & 0b11);
+						continue;
+					}
 
-						switch (opcode) {
-							case 0b00: { // QOI_OP_INDEX
-								SetPixel(seen[read & 0b111111]);
-								break;
-							}
-							case 0b01: { // QOI_OP_DIFF
-								byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
-								byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
-								byte db = (byte)((read & 0b11) - 2);
-								SmallColor delta = new(dr, dg, db, 0);
-								var res = delta + prev;
-								throw new Exception("Source: " + Convert.ToString(read, 2) + "; Diff: " + delta.ToString() + "; Result: " + res.ToString());
-								SetPixel(delta + prev);
-								break;
-							}
-							case 0b10: { // QOI_OP_LUMA
-								byte second = reader.ReadByte();
-								byte dg = (byte)((read & 0b111111) - 32);
-								byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
-								byte db = (byte)((read & 0b1111) - 8 + dg);
-								SmallColor delta = new(dr, dg, db, 0);
-								SetPixel(delta + prev);
-								break;
-							}
-							case 0b11: { // QOI_OP_RUN
-								int len = (read & 0b111111) + 1;
-								for (int i = 0; i < len; ++i) {
-									SetPixel(prev);
-								}
-								break;
-							}
+					byte opcode = (byte)((read >>> 6) & 0b11);
+
+					switch (opcode) {
+						case 0b00: { // QOI_OP_INDEX
+							SetPixel(seen[read & 0b111111]);
+							break;
+						}
+						case 0b01: { // QOI_OP_DIFF
+							byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
+							byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
+							byte db = (byte)((read & 0b11) - 2);
+							SmallColor delta = new(dr, dg, db, 0);
+							SetPixel(delta + prev);
+							break;
+						}
+						case 0b10: { // QOI_OP_LUMA
+							byte second = reader.ReadByte();
+							byte dg = (byte)((read & 0b111111) - 32);
+							byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
+							byte db = (byte)((second & 0b1111) - 8 + dg);
+							SmallColor delta = new(dr, dg, db, 0);
+							SetPixel(delta + prev);
+							break;
+						}
+						case 0b11: { // QOI_OP_RUN
+							int len = (read & 0b111111) + 1;
+							for (int i = 0; i < len; ++i) SetPixel(prev);
+							break;
 						}
 					}
 				}
@@ -200,12 +199,5 @@ namespace QOIFileType {
 
 			return doc;
 		}
-	}
-
-	internal struct Header {
-		public uint width;
-		public uint height;
-		public byte channels;
-		public byte colorspace;
 	}
 }

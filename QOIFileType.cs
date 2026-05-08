@@ -35,6 +35,34 @@ namespace QOIFileType {
 			return theStructure;
 		}
 
+		internal readonly struct SmallColor(byte r, byte g, byte b, byte a = 255) {
+			public readonly byte R = r;
+			public readonly byte G = g;
+			public readonly byte B = b;
+			public readonly byte A = a;
+
+			public Color ToColor() {
+				return Color.FromArgb(R, G, B, A);
+			}
+
+			public static SmallColor operator +(SmallColor left, SmallColor right) {
+				return new SmallColor(
+					(byte)(left.R + right.R),
+					(byte)(left.G + right.G),
+					(byte)(left.B + right.B),
+					(byte)(left.A + right.A)
+				);
+			}
+
+			public override string ToString() {
+				return R + ", " + G + ", " + B + ", " + A;
+			}
+		}
+
+		internal static int PixelHash(SmallColor c) {
+			return (c.R * 3 + c.G * 5 + c.B * 7 + c.A * 11) % 64;
+		}
+
 		/// <summary>
 		/// Constructs a QOIFileTypePlugin instance
 		/// </summary>
@@ -82,35 +110,89 @@ namespace QOIFileType {
 
 			try {
 				using var reader = new BinaryReader(input);
-				// byte width = reader.ReadByte();
-				// byte height = reader.ReadByte();
-
 				var magic = reader.ReadChars(4);
 
 				// Read bytes into the header struct
-				var header = ReadType<Header>(reader);
+				uint width = reader.ReadUInt32();
+				uint height = reader.ReadUInt32();
+				// Read past the channels and colorspace which are unused
+				// TODO: Deal with these maybe?
+				reader.ReadBytes(2);
+				// var header = ReadType<Header>(reader);
 
 				if (BitConverter.IsLittleEndian) {
 					header.width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.width);
 					header.height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(header.height);
 				}
 
-				throw new Exception(new string(magic) + ", " + header.width + ", " + header.height);
+				SmallColor prev = new(0, 0, 0, 255);
+				SmallColor[] seen = new SmallColor[64];
+				int idx = 0;
+				int lastIdx = (int)(header.width * header.height);
 
-				// byte[] imageData = new byte[width * height * 3];
-				// reader.Read(imageData);
-				// using Bitmap bmp = new(width, height, PixelFormat.Format24bppRgb);
+				using Bitmap bmp = new((int)header.width, (int)header.height, PixelFormat.Format32bppArgb);
 
-				// BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.WriteOnly, bmp.PixelFormat);
+				void SetPixel(SmallColor col) {
+					int x = idx % (int)header.width;
+					int y = idx / (int)header.width;
+					bmp.SetPixel(x, y, col.ToColor());
+					prev = col;
+					seen[PixelHash(col)] = col;
+					++idx;
+				}
 
-				// // Copy the pixel data to the bitmap
-				// IntPtr ptr = bmpData.Scan0;
-				// Marshal.Copy(imageData, 0, ptr, imageData.Length);
+				while (true) {
+					if (idx >= lastIdx) break;
 
-				// bmp.UnlockBits(bmpData);
+					byte read = reader.ReadByte();
 
-				// // Create a document from the image
-				// doc = Document.FromImage(bmp);
+					if (read == 0b11111110) { // QOI_OP_RGB
+						byte[] colors = reader.ReadBytes(3);
+						SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
+						SetPixel(alphed);
+					} else if (read == 0b11111111) { // QOI_OP_RGBA
+						byte[] colors = reader.ReadBytes(4);
+						SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
+					} else {
+						byte opcode = (byte)((read >>> 6) & 0b11);
+
+						switch (opcode) {
+							case 0b00: { // QOI_OP_INDEX
+								SetPixel(seen[read & 0b111111]);
+								break;
+							}
+							case 0b01: { // QOI_OP_DIFF
+								byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
+								byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
+								byte db = (byte)((read & 0b11) - 2);
+								SmallColor delta = new(dr, dg, db, 0);
+								var res = delta + prev;
+								throw new Exception("Source: " + Convert.ToString(read, 2) + "; Diff: " + delta.ToString() + "; Result: " + res.ToString());
+								SetPixel(delta + prev);
+								break;
+							}
+							case 0b10: { // QOI_OP_LUMA
+								byte second = reader.ReadByte();
+								byte dg = (byte)((read & 0b111111) - 32);
+								byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
+								byte db = (byte)((read & 0b1111) - 8 + dg);
+								SmallColor delta = new(dr, dg, db, 0);
+								SetPixel(delta + prev);
+								break;
+							}
+							case 0b11: { // QOI_OP_RUN
+								int len = (read & 0b111111) + 1;
+								for (int i = 0; i < len; ++i) {
+									SetPixel(prev);
+								}
+								break;
+							}
+						}
+					}
+				}
+
+				// Create a document from the image
+				doc = Document.FromImage(bmp);
 			} catch (Exception e) {
 				doc?.Dispose();
 				throw new FormatException("Error loading file - " + e.Message, e);

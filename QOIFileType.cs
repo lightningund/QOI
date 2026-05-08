@@ -86,18 +86,31 @@ namespace QOIFileType {
 			ProgressEventHandler progressCallback
 		) {
 			using BinaryWriter writer = new(output, Encoding.UTF8, true);
-			byte width = (byte)input.Width;
-			byte height = (byte)input.Height;
+
+			uint width = (uint)input.Width;
+			uint height = (uint)input.Height;
+			if (BitConverter.IsLittleEndian) {
+				width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(width);
+				height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(height);
+			}
+
+			// Write the header
+			writer.Write(['q', 'o', 'i', 'f']); // Magic
 			writer.Write(width);
 			writer.Write(height);
-			Surface boring = new(width, height);
+			writer.Write((byte)4); // Channels
+			writer.Write((byte)0); // Colorspace
+			Surface boring = new(input.Width, input.Height);
 			input.Flatten(boring);
-			for (int j = 0; j < height; ++j) {
-				for (int i = 0; i < width; ++i) {
+			// Currently just gonna write each color as the full description
+			for (int j = 0; j < input.Height; ++j) {
+				for (int i = 0; i < input.Width; ++i) {
 					var col = boring[i, j];
-					writer.Write(col.B);
-					writer.Write(col.G);
+					writer.Write((byte)0xFF);
 					writer.Write(col.R);
+					writer.Write(col.G);
+					writer.Write(col.B);
+					writer.Write(col.A);
 				}
 			}
 		}
@@ -111,6 +124,7 @@ namespace QOIFileType {
 			try {
 				using var reader = new BinaryReader(input);
 				var magic = reader.ReadChars(4);
+				// TODO: actually check that it matches
 
 				// Read the header
 				uint width = reader.ReadUInt32();

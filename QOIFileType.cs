@@ -49,6 +49,18 @@ namespace QOIFileType {
 				return R + ", " + G + ", " + B + ", " + A;
 			}
 
+			public static bool operator ==(SmallColor left, SmallColor right) {
+				return
+					left.R == right.R &&
+					left.G == right.G &&
+					left.B == right.B &&
+					left.A == right.A;
+			}
+
+			public static bool operator !=(SmallColor left, SmallColor right) {
+				return !(left == right);
+			}
+
 			public static SmallColor operator +(SmallColor left, SmallColor right) {
 				return new SmallColor(
 					(byte)(left.R + right.R),
@@ -111,10 +123,56 @@ namespace QOIFileType {
 			writer.Write((byte)0); // Colorspace
 			Surface boring = new(input.Width, input.Height);
 			input.Flatten(boring);
-			// Currently just gonna write each color as the full description
-			for (int j = 0; j < input.Height; ++j) {
-				for (int i = 0; i < input.Width; ++i) {
-					var col = boring[i, j];
+
+			SmallColor getCol(int idx) {
+				int x = idx % input.Width;
+				int y = idx / input.Width;
+				var col = boring[x, y];
+				return new SmallColor(col.R, col.G, col.B, col.A);
+			}
+
+			// Testcard with different saving methods:
+			// Supplied: 22kb
+			// All RGBA (not saved): 321kb
+			// Let alpha default to 255 (v1): 256kb
+			// Use OP_DIFF for small differences (v2): 86.6kb
+			// Use OP_RUN for same pixels (v4): 37.3kb
+
+			SmallColor prev = new(0, 0, 0, 255);
+			int lastIdx = input.Width * input.Height;
+
+			for (int idx = 0; idx < lastIdx; ++idx) {
+				var col = getCol(idx);
+
+				if (col == prev) {
+					int len = 1;
+					// Find out how many in a row are the same
+					while ((idx < lastIdx - 1) && (getCol(++idx) == prev) && (len < 62)) { ++len; }
+					int op = 0b11000000;
+					op |= len - 1;
+					writer.Write((byte)op);
+
+					// If we hit the end, get out of here
+					if (idx >= lastIdx) return;
+
+					// Otherwise continue on like normal with the next different color
+					col = getCol(idx);
+				}
+
+				var diff = col - prev;
+				var smallDiff = diff + new SmallColor(2, 2, 2, 0);
+				if ( // OP_DIFF
+					smallDiff.A == 0 &&
+					smallDiff.R >= 0 && smallDiff.R < 4 &&
+					smallDiff.G >= 0 && smallDiff.G < 4 &&
+					smallDiff.B >= 0 && smallDiff.B < 4
+				) {
+					int op = 0b01000000;
+					op |= smallDiff.R << 4;
+					op |= smallDiff.G << 2;
+					op |= smallDiff.B;
+					writer.Write((byte)op);
+				} else { // Full specification (OP_RGB/OP_RGBA)
 					bool needAlpha = col.A != 255;
 					writer.Write((byte)(needAlpha ? 0xFF : 0xFE));
 					writer.Write(col.R);
@@ -122,6 +180,8 @@ namespace QOIFileType {
 					writer.Write(col.B);
 					if (needAlpha) writer.Write(col.A);
 				}
+
+				prev = col;
 			}
 		}
 
@@ -164,61 +224,63 @@ namespace QOIFileType {
 					++idx;
 				}
 
-				while (true) {
-					if (idx >= lastIdx) break;
+				while (idx < lastIdx) {
+					try {
+						byte read = reader.ReadByte();
 
-					byte read = reader.ReadByte();
-
-					if (read == 0b11111110) { // QOI_OP_RGB
-						byte[] colors = reader.ReadBytes(3);
-						SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
-						SetPixel(alphed);
-						continue;
-					}
-
-					if (read == 0b11111111) { // QOI_OP_RGBA
-						byte[] colors = reader.ReadBytes(4);
-						SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
-						continue;
-					}
-
-					byte opcode = (byte)((read >>> 6) & 0b11);
-
-					switch (opcode) {
-						case 0b00: { // QOI_OP_INDEX
-							SetPixel(seen[read & 0b111111]);
-							break;
+						if (read == 0b11111110) { // QOI_OP_RGB
+							byte[] colors = reader.ReadBytes(3);
+							SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
+							SetPixel(alphed);
+							continue;
 						}
-						case 0b01: { // QOI_OP_DIFF
-							byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
-							byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
-							byte db = (byte)((read & 0b11) - 2);
-							SmallColor delta = new(dr, dg, db, 0);
-							SetPixel(delta + prev);
-							break;
+
+						if (read == 0b11111111) { // QOI_OP_RGBA
+							byte[] colors = reader.ReadBytes(4);
+							SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
+							continue;
 						}
-						case 0b10: { // QOI_OP_LUMA
-							byte second = reader.ReadByte();
-							byte dg = (byte)((read & 0b111111) - 32);
-							byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
-							byte db = (byte)((second & 0b1111) - 8 + dg);
-							SmallColor delta = new(dr, dg, db, 0);
-							SetPixel(delta + prev);
-							break;
+
+						byte opcode = (byte)((read >>> 6) & 0b11);
+
+						switch (opcode) {
+							case 0b00: { // QOI_OP_INDEX
+								SetPixel(seen[read & 0b111111]);
+								break;
+							}
+							case 0b01: { // QOI_OP_DIFF
+								byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
+								byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
+								byte db = (byte)((read & 0b11) - 2);
+								SmallColor delta = new(dr, dg, db, 0);
+								SetPixel(delta + prev);
+								break;
+							}
+							case 0b10: { // QOI_OP_LUMA
+								byte second = reader.ReadByte();
+								byte dg = (byte)((read & 0b111111) - 32);
+								byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
+								byte db = (byte)((second & 0b1111) - 8 + dg);
+								SmallColor delta = new(dr, dg, db, 0);
+								SetPixel(delta + prev);
+								break;
+							}
+							case 0b11: { // QOI_OP_RUN
+								int len = (read & 0b111111) + 1;
+								for (int i = 0; i < len; ++i) SetPixel(prev);
+								break;
+							}
 						}
-						case 0b11: { // QOI_OP_RUN
-							int len = (read & 0b111111) + 1;
-							for (int i = 0; i < len; ++i) SetPixel(prev);
-							break;
-						}
+					} catch (EndOfStreamException err) {
+						throw new Exception("Ran out file! We were at index " + idx);
 					}
 				}
 
 				// Create a document from the image
 				doc = Document.FromImage(bmp);
-			} catch (Exception e) {
+			} catch (Exception err) {
 				doc?.Dispose();
-				throw new FormatException("Error loading file - " + e.Message, e);
+				throw new FormatException("Error loading file - " + err.Message, err);
 			}
 
 			return doc;

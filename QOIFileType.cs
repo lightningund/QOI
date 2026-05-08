@@ -45,6 +45,10 @@ namespace QOIFileType {
 				return Color.FromArgb(A, R, G, B);
 			}
 
+			public override string ToString() {
+				return R + ", " + G + ", " + B + ", " + A;
+			}
+
 			public static SmallColor operator +(SmallColor left, SmallColor right) {
 				return new SmallColor(
 					(byte)(left.R + right.R),
@@ -54,8 +58,13 @@ namespace QOIFileType {
 				);
 			}
 
-			public override string ToString() {
-				return R + ", " + G + ", " + B + ", " + A;
+			public static SmallColor operator -(SmallColor left, SmallColor right) {
+				return new SmallColor(
+					(byte)(left.R - right.R),
+					(byte)(left.G - right.G),
+					(byte)(left.B - right.B),
+					(byte)(left.A - right.A)
+				);
 			}
 		}
 
@@ -106,11 +115,12 @@ namespace QOIFileType {
 			for (int j = 0; j < input.Height; ++j) {
 				for (int i = 0; i < input.Width; ++i) {
 					var col = boring[i, j];
-					writer.Write((byte)0xFF);
+					bool needAlpha = col.A != 255;
+					writer.Write((byte)(needAlpha ? 0xFF : 0xFE));
 					writer.Write(col.R);
 					writer.Write(col.G);
 					writer.Write(col.B);
-					writer.Write(col.A);
+					if (needAlpha) writer.Write(col.A);
 				}
 			}
 		}

@@ -132,13 +132,16 @@ namespace QOIFileType {
 			}
 
 			// Testcard with different saving methods:
-			// Supplied: 22kb
+			// Supplied: 21.3kb
 			// All RGBA (not saved): 321kb
 			// Let alpha default to 255 (v1): 256kb
 			// Use OP_DIFF for small differences (v2): 86.6kb
 			// Use OP_RUN for same pixels (v4): 37.3kb
+			// Use OP_INDEX for ones we've already seen (v5): 25kb
+			// Use OP_LUMA for slightly larger difference (v6): 22.7kb
 
 			SmallColor prev = new(0, 0, 0, 255);
+			SmallColor[] seen = new SmallColor[64];
 			int lastIdx = input.Width * input.Height;
 
 			for (int idx = 0; idx < lastIdx; ++idx) {
@@ -161,8 +164,23 @@ namespace QOIFileType {
 
 				var diff = col - prev;
 				var smallDiff = diff + new SmallColor(2, 2, 2, 0);
-				if ( // OP_DIFF
-					smallDiff.A == 0 &&
+				var lumaDiff = diff + new SmallColor((byte)(8 - diff.G), 32, (byte)(8 - diff.G), 0);
+				if (seen[PixelHash(col)] == col) {
+					writer.Write((byte)PixelHash(col));
+				} else if ( // OP_LUMA
+					diff.A == 0 &&
+					lumaDiff.G >= 0 && lumaDiff.G < 64 &&
+					lumaDiff.R >= 0 && lumaDiff.R < 16 &&
+					lumaDiff.B >= 0 && lumaDiff.B < 16
+				) {
+					int op = 0b10000000;
+					op |= lumaDiff.G;
+					int rb = lumaDiff.R << 4;
+					rb |= lumaDiff.B;
+					writer.Write((byte)op);
+					writer.Write((byte)rb);
+				} else if ( // OP_DIFF
+					diff.A == 0 &&
 					smallDiff.R >= 0 && smallDiff.R < 4 &&
 					smallDiff.G >= 0 && smallDiff.G < 4 &&
 					smallDiff.B >= 0 && smallDiff.B < 4
@@ -181,6 +199,7 @@ namespace QOIFileType {
 					if (needAlpha) writer.Write(col.A);
 				}
 
+				seen[PixelHash(col)] = col;
 				prev = col;
 			}
 		}

@@ -13,7 +13,6 @@ using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Text;
-using System.Runtime.InteropServices;
 
 namespace QOIFileType {
 	public sealed class QOIFileTypeFactory : IFileTypeFactory {
@@ -24,17 +23,6 @@ namespace QOIFileType {
 
 	[PluginSupportInfo(typeof(PluginSupportInfo))]
 	internal class QOIFileTypePlugin : FileType {
-		// From https://stackoverflow.com/a/4074557
-		internal static T ReadType<T>(BinaryReader reader) {
-			byte[] bytes = reader.ReadBytes(Marshal.SizeOf<T>());
-
-			GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-			T theStructure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());
-			handle.Free();
-
-			return theStructure;
-		}
-
 		internal readonly struct SmallColor(byte r, byte g, byte b, byte a = 255) {
 			public readonly byte R = r;
 			public readonly byte G = g;
@@ -59,6 +47,14 @@ namespace QOIFileType {
 
 			public static bool operator !=(SmallColor left, SmallColor right) {
 				return !(left == right);
+			}
+
+			public override bool Equals(object obj) {
+				if (obj == null || GetType() != obj.GetType()) {
+					return false;
+				}
+
+				return this == (SmallColor)obj;
 			}
 
 			public static SmallColor operator +(SmallColor left, SmallColor right) {
@@ -208,101 +204,92 @@ namespace QOIFileType {
 		/// Creates a document from a stream
 		/// </summary>
 		protected override Document OnLoad(Stream input) {
-			Document doc = null;
-
-			try {
-				using var reader = new BinaryReader(input);
-				var magic = reader.ReadChars(4);
-				// TODO: actually check that it matches
-
-				// Read the header
-				uint width = reader.ReadUInt32();
-				uint height = reader.ReadUInt32();
-				// Read past the channels and colorspace which are unused
-				// TODO: Deal with these maybe?
-				reader.ReadBytes(2);
-
-				if (BitConverter.IsLittleEndian) {
-					width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(width);
-					height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(height);
-				}
-
-				SmallColor prev = new(0, 0, 0, 255);
-				SmallColor[] seen = new SmallColor[64];
-				int idx = 0;
-				int lastIdx = (int)(width * height);
-
-				using Bitmap bmp = new((int)width, (int)height, PixelFormat.Format32bppArgb);
-
-				void SetPixel(SmallColor col) {
-					int x = idx % (int)width;
-					int y = idx / (int)width;
-					bmp.SetPixel(x, y, col.ToColor());
-					prev = col;
-					seen[PixelHash(col)] = col;
-					++idx;
-				}
-
-				while (idx < lastIdx) {
-					try {
-						byte read = reader.ReadByte();
-
-						if (read == 0b11111110) { // QOI_OP_RGB
-							byte[] colors = reader.ReadBytes(3);
-							SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
-							SetPixel(alphed);
-							continue;
-						}
-
-						if (read == 0b11111111) { // QOI_OP_RGBA
-							byte[] colors = reader.ReadBytes(4);
-							SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
-							continue;
-						}
-
-						byte opcode = (byte)((read >>> 6) & 0b11);
-
-						switch (opcode) {
-							case 0b00: { // QOI_OP_INDEX
-								SetPixel(seen[read & 0b111111]);
-								break;
-							}
-							case 0b01: { // QOI_OP_DIFF
-								byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
-								byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
-								byte db = (byte)((read & 0b11) - 2);
-								SmallColor delta = new(dr, dg, db, 0);
-								SetPixel(delta + prev);
-								break;
-							}
-							case 0b10: { // QOI_OP_LUMA
-								byte second = reader.ReadByte();
-								byte dg = (byte)((read & 0b111111) - 32);
-								byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
-								byte db = (byte)((second & 0b1111) - 8 + dg);
-								SmallColor delta = new(dr, dg, db, 0);
-								SetPixel(delta + prev);
-								break;
-							}
-							case 0b11: { // QOI_OP_RUN
-								int len = (read & 0b111111) + 1;
-								for (int i = 0; i < len; ++i) SetPixel(prev);
-								break;
-							}
-						}
-					} catch (EndOfStreamException err) {
-						throw new Exception("Ran out file! We were at index " + idx);
-					}
-				}
-
-				// Create a document from the image
-				doc = Document.FromImage(bmp);
-			} catch (Exception err) {
-				doc?.Dispose();
-				throw new FormatException("Error loading file - " + err.Message, err);
+			using var reader = new BinaryReader(input);
+			var magic = reader.ReadChars(4);
+			if (new string(magic) != "qoif") {
+				throw new FormatException("Magic bytes do not match! Got: " + new string(magic) + "; Expected: qoif");
 			}
 
-			return doc;
+			// Read the header
+			uint width = reader.ReadUInt32();
+			uint height = reader.ReadUInt32();
+			// Read past the channels and colorspace which are unused
+			reader.ReadBytes(2);
+
+			if (BitConverter.IsLittleEndian) {
+				width = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(width);
+				height = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(height);
+			}
+
+			SmallColor prev = new(0, 0, 0, 255);
+			SmallColor[] seen = new SmallColor[64];
+			int idx = 0;
+			int lastIdx = (int)(width * height);
+
+			using Bitmap bmp = new((int)width, (int)height, PixelFormat.Format32bppArgb);
+
+			void SetPixel(SmallColor col) {
+				int x = idx % (int)width;
+				int y = idx / (int)width;
+				bmp.SetPixel(x, y, col.ToColor());
+				prev = col;
+				seen[PixelHash(col)] = col;
+				++idx;
+			}
+
+			while (idx < lastIdx) {
+				try {
+					byte read = reader.ReadByte();
+
+					if (read == 0b11111110) { // QOI_OP_RGB
+						byte[] colors = reader.ReadBytes(3);
+						SmallColor alphed = new(colors[0], colors[1], colors[2], prev.A);
+						SetPixel(alphed);
+						continue;
+					}
+
+					if (read == 0b11111111) { // QOI_OP_RGBA
+						byte[] colors = reader.ReadBytes(4);
+						SetPixel(new SmallColor(colors[0], colors[1], colors[2], colors[3]));
+						continue;
+					}
+
+					byte opcode = (byte)((read >>> 6) & 0b11);
+
+					switch (opcode) {
+						case 0b00: { // QOI_OP_INDEX
+							SetPixel(seen[read & 0b111111]);
+							break;
+						}
+						case 0b01: { // QOI_OP_DIFF
+							byte dr = (byte)(((read & 0b110000) >>> 4) - 2);
+							byte dg = (byte)(((read & 0b1100) >>> 2) - 2);
+							byte db = (byte)((read & 0b11) - 2);
+							SmallColor delta = new(dr, dg, db, 0);
+							SetPixel(delta + prev);
+							break;
+						}
+						case 0b10: { // QOI_OP_LUMA
+							byte second = reader.ReadByte();
+							byte dg = (byte)((read & 0b111111) - 32);
+							byte dr = (byte)(((second & 0b11110000) >>> 4) - 8 + dg);
+							byte db = (byte)((second & 0b1111) - 8 + dg);
+							SmallColor delta = new(dr, dg, db, 0);
+							SetPixel(delta + prev);
+							break;
+						}
+						case 0b11: { // QOI_OP_RUN
+							int len = (read & 0b111111) + 1;
+							for (int i = 0; i < len; ++i) SetPixel(prev);
+							break;
+						}
+					}
+				} catch (EndOfStreamException err) {
+					throw new Exception("Ran out file! We were at index " + idx, err);
+				}
+			}
+
+			return Document.FromImage(bmp);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-﻿// Originally from:
+﻿// Originally based on:
 // https://github.com/sbtrn-devil/pdn-json/blob/main/PdnJsonFileType.cs
 // Acquired on 06/05/25
 
@@ -93,7 +93,7 @@ namespace QOIFileType {
 			) {}
 
 		/// <summary>
-		/// Saves a document to a stream respecting the properties
+		/// Saves a document to a stream
 		/// </summary>
 		protected override void OnSave(
 			Document input,
@@ -117,6 +117,7 @@ namespace QOIFileType {
 			writer.Write(height);
 			writer.Write((byte)4); // Channels
 			writer.Write((byte)0); // Colorspace
+
 			Surface boring = new(input.Width, input.Height);
 			input.Flatten(boring);
 

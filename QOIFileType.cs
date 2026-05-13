@@ -129,13 +129,13 @@ namespace QOIFileType {
 			}
 
 			// Testcard with different saving methods:
-			// Supplied: 21.3kb
-			// All RGBA (not saved): 321kb
-			// Let alpha default to 255 (v1): 256kb
-			// Use OP_DIFF for small differences (v2): 86.6kb
-			// Use OP_RUN for same pixels (v4): 37.3kb
-			// Use OP_INDEX for ones we've already seen (v5): 25kb
-			// Use OP_LUMA for slightly larger difference (v6): 22.7kb
+			// Supplied: 21.3KB
+			// All RGBA (not saved): 321KB
+			// Let alpha default to 255 (v1): 256KB
+			// Use OP_DIFF for small differences (v2): 86.6KB
+			// Use OP_RUN for same pixels (v4): 37.3KB
+			// Use OP_INDEX for ones we've already seen (v5): 25KB
+			// Use OP_LUMA for slightly larger difference (v6): 22.7KB
 
 			SmallColor prev = new(0, 0, 0, 255);
 			SmallColor[] seen = new SmallColor[64];
